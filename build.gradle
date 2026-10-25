@@ -1,40 +1,57 @@
-plugins {
-    id 'fabric-loom' version '1.8-SNAPSHOT'
-}
+name: build
+on:
+  push:
+  workflow_dispatch:
 
-version = project.mod_version
-group = project.maven_group
-base { archivesName = project.archives_base_name }
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
-repositories { }
+      - name: Unpack the source zip (if it is in the repo)
+        run: |
+          if [ -f daot-limbs-source-updated.zip ]; then
+            unzip -o daot-limbs-source-updated.zip -x ".github/*"
+          fi
+          echo "Java files:"; find . -name "*.java" | wc -l
 
-loom {
-    splitEnvironmentSourceSets()
-    mods {
-        "daot_limbs" {
-            sourceSet sourceSets.main
-            sourceSet sourceSets.client
-        }
-    }
-}
+      - name: Fix plugin repositories and Loom version
+        run: |
+          cat > settings.gradle <<'EOF'
+          pluginManagement {
+              repositories {
+                  maven { url = 'https://maven.fabricmc.net/' }
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          EOF
+          sed -i "s/1.8-SNAPSHOT/1.8.13/" build.gradle
+          cat settings.gradle
+          head -3 build.gradle
 
-dependencies {
-    minecraft "com.mojang:minecraft:${project.minecraft_version}"
-    mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
-    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
-    modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
-    // Danny's AOT is deliberately NOT a compile dependency: every call into it is reflective (see DaotBridge).
-}
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
 
-processResources {
-    inputs.property "version", project.version
-    filesMatching("fabric.mod.json") { expand "version": project.version }
-}
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.10.2
 
-tasks.withType(JavaCompile).configureEach { it.options.release = 21 }
+      - name: Build
+        run: gradle build --stacktrace
 
-java {
-    withSourcesJar()
-    sourceCompatibility = JavaVersion.VERSION_21
-    targetCompatibility = JavaVersion.VERSION_21
-}
+      - name: Show jar contents
+        run: |
+          ls -la build/libs
+          unzip -l build/libs/daot-limbs-1.0.0.jar | tail -3
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: daot-limbs-jar
+          path: |
+            build/libs/*.jar
+            !build/libs/*-sources.jar
+          if-no-files-found: error
