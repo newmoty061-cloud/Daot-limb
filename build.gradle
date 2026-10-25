@@ -18,15 +18,7 @@ jobs:
 
       - name: Fix plugin repositories and Loom version
         run: |
-          cat > settings.gradle <<'EOF'
-          pluginManagement {
-              repositories {
-                  maven { url = 'https://maven.fabricmc.net/' }
-                  mavenCentral()
-                  gradlePluginPortal()
-              }
-          }
-          EOF
+          echo "pluginManagement { repositories { maven { url = 'https://maven.fabricmc.net/' }; mavenCentral(); gradlePluginPortal() } }" > settings.gradle
           sed -i "s/1.8-SNAPSHOT/1.8.13/" build.gradle
           cat settings.gradle
           head -3 build.gradle
@@ -49,9 +41,3 @@ jobs:
           unzip -l build/libs/daot-limbs-1.0.0.jar | tail -3
 
       - uses: actions/upload-artifact@v4
-        with:
-          name: daot-limbs-jar
-          path: |
-            build/libs/*.jar
-            !build/libs/*-sources.jar
-          if-no-files-found: error
